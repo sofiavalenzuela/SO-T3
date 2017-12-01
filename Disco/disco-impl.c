@@ -15,7 +15,6 @@
 
 MODULE_LICENSE("Dual BSD/GPL");
 
-//... etc.: copie el resto de ../Syncread/syncread-impl.c ...
 
 /* Declaration of disco.c functions */
 int disco_open(struct inode *inode, struct file *filp);
@@ -46,6 +45,20 @@ module_exit(disco_exit);
 #define TRUE 1
 #define FALSE 0
 
+/*escritor es el que crea pipes */
+typedef struct {
+  char *buffer;
+
+  ssize_t size;
+  int writing;
+  int pend_open_write;
+
+  /* El mutex y la condicion para pipe */
+  KMutex mutex;
+  KCondition cond;
+} ElPipe;
+
+
 /* Global variables of the driver */
 
 int disco_major = 61;     /* Major number */
@@ -64,21 +77,6 @@ static KCondition escritoresEsperanSeTomePipe;
 static KCondition escritorEsperaLector;
 
 
-/*escritor es el que crea pipes */
-
-typedef struct {
-	char *buffer;
-
-	ssize_t size;
-	int writing;
-	int pend_open_write;
-
-	/* El mutex y la condicion para pipe */
-	KMutex mutex;
-	KCondition cond;
-} ElPipe;
-
-
 ElPipe *pipe_init(void) {
 	ElPipe *pipe =kmalloc(sizeof(pipe), GFP_KERNEL);
 	pipe->writing= FALSE;
@@ -95,14 +93,14 @@ ElPipe *pipe_init(void) {
 }
 
 
-int syncread_init(void) {
+int disco_init(void) {
   int rc;
 
   /* Registering device */
-  rc = register_chrdev(syncread_major, "syncread", &syncread_fops);
+  rc = register_chrdev(disco_major, "disco", &disco_fops);
   if (rc < 0) {
     printk(
-      "<1>syncread: cannot obtain major number %d\n", syncread_major);
+      "<1>disco: cannot obtain major number %d\n", disco_major);
     return rc;
   }
 
@@ -111,18 +109,18 @@ int syncread_init(void) {
   c_init(&escritoresEsperanSeTomePipe);
   flagPipeCreado=FALSE;
 
-  printk("<1>Inserting syncread module\n");
+  printk("<1>Inserting disco module\n");
   return 0;
 }
 
-void syncread_exit(void) { 
+void disco_exit(void) { 
   /* Freeing the major number */
-  unregister_chrdev(syncread_major, "syncread");
+  unregister_chrdev(disco_major, "disco");
 
-  printk("<1>Removing syncread module\n");
+  printk("<1>Removing disco module\n");
 }
 
-int syncread_open(struct inode *inode, struct file *filp) {
+int disco_open(struct inode *inode, struct file *filp) {
 	
   int rc= 0;
   m_lock(&mutex);
@@ -133,7 +131,8 @@ int syncread_open(struct inode *inode, struct file *filp) {
   		c_wait(&escritoresEsperanSeTomePipe, &mutex);
   	}
   	/*creo un pipe*/
-  	ElPipe *p = pipe_init();
+  	ElPipe *p;
+    p = pipe_init();
   	flagPipeCreado=TRUE;
   	flagPipeLlevado=FALSE;
   	filp->private_data=p;
@@ -168,7 +167,7 @@ epilog:
   return rc;
 }
 
-int syncread_release(struct inode *inode, struct file *filp) {
+int disco_release(struct inode *inode, struct file *filp) {
 	/* liberar memoria del buffer del pipe y luego del pipe*/
 	/*solo uno puede hacer free*/
 	ElPipe *p = filp->private_data;
@@ -195,7 +194,7 @@ int syncread_release(struct inode *inode, struct file *filp) {
 	return 0;
 }
 
-ssize_t syncread_read(struct file *filp, char *buf, size_t count, loff_t *f_pos) {
+ssize_t disco_read(struct file *filp, char *buf, size_t count, loff_t *f_pos) {
 	ElPipe *p = filp->private_data;
 
   ssize_t rc;
@@ -233,7 +232,7 @@ epilog:
   return rc;
 }
 
-ssize_t syncread_write( struct file *filp, const char *buf, size_t count, loff_t *f_pos) {
+ssize_t disco_write( struct file *filp, const char *buf, size_t count, loff_t *f_pos) {
 	ElPipe *p = filp->private_data;
   ssize_t rc;
   loff_t last;
