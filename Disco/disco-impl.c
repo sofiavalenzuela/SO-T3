@@ -77,20 +77,19 @@ static KCondition escritoresEsperanSeTomePipe;
 static KCondition escritorEsperaLector;
 
 
-ElPipe *pipe_init(void) {
+/*ElPipe *pipe_init(void) {
 	ElPipe *pipe =kmalloc(sizeof(pipe), GFP_KERNEL);
 	pipe->writing= FALSE;
 	pipe->pend_open_write= 0;
 	pipe->size= 0;
 	m_init(&pipe->mutex);
 	c_init(&pipe->cond);
-	/* Allocating pipe_buffer */
 	pipe->buffer = kmalloc(MAX_SIZE, GFP_KERNEL);
 
-	memset(pipe->buffer, 0, MAX_SIZE); /*hasta Max_size los deja en cero*/
+	memset(pipe->buffer, 0, MAX_SIZE); 
 
 	return pipe;
-}
+}*/
 
 
 int disco_init(void) {
@@ -131,20 +130,27 @@ int disco_open(struct inode *inode, struct file *filp) {
   		c_wait(&escritoresEsperanSeTomePipe, &mutex);
   	}
   	/*creo un pipe*/
-  	ElPipe *p;
-    p = pipe_init();
+  	ElPipe *p =kmalloc(sizeof(p), GFP_KERNEL);
+    p->pend_open_write= 0;
+    p->size= 0;
+    m_init(&->mutex);
+    c_init(&p->cond);
+    p->buffer = kmalloc(MAX_SIZE, GFP_KERNEL);
+    memset(p->buffer, 0, MAX_SIZE); 
+    p->writing=TRUE;
+
   	flagPipeCreado=TRUE;
   	flagPipeLlevado=FALSE;
   	filp->private_data=p;
   	pipeUltimoCreado=p;
-  	writing=TRUE;
-  	 /*aviso a los lectores que hay un nuevo pipe creado*/
+  	
+  	/*aviso a los lectores que hay un nuevo pipe creado*/
   	c_broadcast(&lectorEsperaPipe);
   	/*m_unlock(&mutex);*/
 
   	/*esperar que un lector tome el pipe*/
   	/*m_lock(&mutex);*/
-  	while(flagPipeLlevado=FALSE){
+  	while(flagPipeLlevado==FALSE){
   		c_wait(&escritorEsperaLector, &mutex);
   	}
   	flagPipeCreado=FALSE;
@@ -152,7 +158,7 @@ int disco_open(struct inode *inode, struct file *filp) {
   	m_unlock(&mutex);
   }
   else if (filp->f_mode & FMODE_READ) {
-  	while(flagPipeCreado=FALSE){
+  	while(flagPipeCreado==FALSE){
   		c_wait(&lectorEsperaPipe, &mutex);
   	}
   	filp->private_data=pipeUltimoCreado;
@@ -162,8 +168,6 @@ int disco_open(struct inode *inode, struct file *filp) {
   	m_unlock(&mutex);
   }
 
-epilog:
-  m_unlock(&mutex);
   return rc;
 }
 
@@ -174,7 +178,7 @@ int disco_release(struct inode *inode, struct file *filp) {
 	/*esos mutex son del pipe, no globales*/
 	m_lock(&p->mutex);
 	if (filp->f_mode & FMODE_WRITE) {
-		writing= FALSE;
+		p->writing= FALSE;
 		c_broadcast(&p->cond);
 		printk("<1>close for write successful\n");
 		m_unlock(&p->mutex);
@@ -183,7 +187,7 @@ int disco_release(struct inode *inode, struct file *filp) {
 	}
 	else if (filp->f_mode & FMODE_READ) {
 		c_broadcast(&p->cond);
-		printk("<1>close for read (readers remaining=%d)\n", readers);
+		printk("<1>close for read\n");
 		m_unlock(&p->mutex);
 	}
 	else{
