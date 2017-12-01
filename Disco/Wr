@@ -1,0 +1,13 @@
+Wr
+Hay un pipe creado? -> wait
+Crear el pipe
+Guardarlo (el puntero)
+Notifica que se creó (broadcast)
+Espera a que el Rd se lo lleve
+Cambia las flags y despierta a otro Wr
+
+Rd
+No hay un pipe disponible? -> Wait
+Lo guardo (private_data)
+Aviso que lo guardé
+
